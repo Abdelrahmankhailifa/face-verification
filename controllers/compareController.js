@@ -1,15 +1,16 @@
-const faceModel = require('../models/modelLoader');
+﻿const faceModel = require('../models/modelLoader');
 const ImageProcessor = require('../utils/imageProcessing');
 const ImageOptimizer = require('../utils/imageOptimizer');
 const SimilarityCalculator = require('../utils/similarity');
-const ValidationUtils = require('../utils/validation');
+const EnhancedValidation = require('../utils/validation');
 const ort = require('onnxruntime-node');
 
 class CompareController {
   async compareFaces(req, res) {
     try {
-      console.log('\n🔍 Compare endpoint called');
+      console.log('\nðŸ” Enhanced compare endpoint called');
 
+      // Validate inputs
       if (!req.file) {
         return res.status(400).json({
           success: false,
@@ -26,7 +27,7 @@ class CompareController {
 
       // Validate image
       try {
-        ValidationUtils.validateImageFile(req.file);
+        EnhancedValidation.validateImageFile(req.file);
       } catch (validationError) {
         return res.status(400).json({
           success: false,
@@ -36,17 +37,11 @@ class CompareController {
 
       console.log(`Processing image: ${req.file.originalname}`);
 
-      // Optimize if needed
-      let processedBuffer = req.file.buffer;
-      if (req.file.size > 5 * 1024 * 1024) {
-        processedBuffer = await ImageOptimizer.optimizeImage(req.file.buffer);
-      }
-
-      // Parse embedding
+      // Parse and validate stored embedding
       let storedEmbedding;
       try {
-        storedEmbedding = ValidationUtils.parseEmbedding(req.body.storedEmbedding);
-        console.log('✅ Stored embedding validated');
+        storedEmbedding = EnhancedValidation.parseEmbedding(req.body.storedEmbedding);
+        console.log('âœ… Stored embedding validated');
       } catch (embeddingError) {
         return res.status(400).json({
           success: false,
@@ -54,11 +49,17 @@ class CompareController {
         });
       }
 
+      // Optimize image if needed
+      let processedBuffer = req.file.buffer;
+      if (req.file.size > 5 * 1024 * 1024) {
+        processedBuffer = await ImageOptimizer.optimizeImage(req.file.buffer);
+      }
+
       // Preprocess image
       let processedImage;
       try {
         processedImage = await ImageProcessor.preprocessHumanFace(processedBuffer);
-        console.log('✅ Image preprocessing completed');
+        console.log('âœ… Image preprocessing completed');
       } catch (faceError) {
         return res.status(400).json({
           success: false,
@@ -66,13 +67,13 @@ class CompareController {
         });
       }
 
-      // Generate embedding - SIMPLE DIRECT CALL
+      // Generate embedding for new image
       let newEmbedding;
       try {
-        console.log('🔄 Generating embedding for comparison...');
+        console.log('ðŸ”„ Generating embedding for comparison...');
         const tensor = new ort.Tensor('float32', processedImage, [1, 112, 112, 3]);
         newEmbedding = await faceModel.generateEmbedding(tensor);
-        console.log(`✅ New embedding generated: ${newEmbedding.length} dimensions`);
+        console.log(`âœ… New embedding generated: ${newEmbedding.length} dimensions`);
       } catch (modelError) {
         console.error('Model error:', modelError);
         return res.status(500).json({
@@ -85,7 +86,7 @@ class CompareController {
       let similarity;
       try {
         similarity = SimilarityCalculator.cosineSimilarity(newEmbedding, storedEmbedding);
-        console.log(`📊 Similarity score: ${similarity.toFixed(4)}`);
+        console.log(`ðŸ“Š Similarity score: ${similarity.toFixed(4)}`);
       } catch (similarityError) {
         return res.status(500).json({
           success: false,
@@ -98,25 +99,27 @@ class CompareController {
       const isMatch = SimilarityCalculator.isMatch(similarity, threshold);
       const confidence = SimilarityCalculator.getMatchConfidence(similarity);
 
-      console.log(`🎯 Match: ${isMatch}, Threshold: ${threshold}, Confidence: ${confidence}`);
+      console.log(`ðŸŽ¯ Match: ${isMatch}, Threshold: ${threshold}, Confidence: ${confidence}`);
 
-      // Success
+      // Success response
       res.json({
         success: true,
         isMatch: isMatch,
         similarity: parseFloat(similarity.toFixed(4)),
         confidence: confidence,
-        threshold: threshold
+        threshold: threshold,
+        normalized: true
       });
 
     } catch (error) {
-      console.error('Unexpected error:', error);
+      console.error('Unexpected error in compare:', error);
       res.status(500).json({
         success: false,
-        error: 'Internal server error'
+        error: 'Internal server error during face comparison'
       });
     }
   }
 }
 
 module.exports = new CompareController();
+

@@ -1,15 +1,16 @@
-const faceModel = require('../models/modelLoader');
+﻿const faceModel = require('../models/modelLoader');
 const ImageProcessor = require('../utils/imageProcessing');
 const ImageOptimizer = require('../utils/imageOptimizer');
-const { FaceEmbedding } = require('../database/models');
+const Normalization = require('../utils/normalization');
 const ValidationUtils = require('../utils/validation');
 const ort = require('onnxruntime-node');
 
 class EncodeController {
   async encodeFace(req, res) {
     try {
-      console.log('\n📸 Encoding endpoint called');
+      console.log('\nðŸ“¸ Enhanced encoding endpoint called');
       
+      // Validate request
       if (!req.file) {
         return res.status(400).json({
           success: false,
@@ -17,7 +18,7 @@ class EncodeController {
         });
       }
 
-      // Validate image
+      // Validate image file
       try {
         ValidationUtils.validateImageFile(req.file);
       } catch (validationError) {
@@ -29,7 +30,7 @@ class EncodeController {
 
       console.log(`Processing image: ${req.file.originalname}, Size: ${(req.file.size / 1024 / 1024).toFixed(2)}MB`);
 
-      // Optimize if needed
+      // Optimize image if needed
       let processedBuffer = req.file.buffer;
       if (req.file.size > 5 * 1024 * 1024) {
         processedBuffer = await ImageOptimizer.optimizeImage(req.file.buffer);
@@ -39,7 +40,7 @@ class EncodeController {
       let processedImage;
       try {
         processedImage = await ImageProcessor.preprocessHumanFace(processedBuffer);
-        console.log('✅ Image preprocessing completed');
+        console.log('âœ… Image preprocessing completed');
       } catch (faceError) {
         return res.status(400).json({
           success: false,
@@ -47,54 +48,59 @@ class EncodeController {
         });
       }
 
-      // Generate embedding - SIMPLE DIRECT CALL
+      // Generate embedding
       let embedding;
       try {
-        console.log('🔄 Generating embedding...');
+        console.log('ðŸ”„ Generating embedding...');
         const tensor = new ort.Tensor('float32', processedImage, [1, 112, 112, 3]);
         embedding = await faceModel.generateEmbedding(tensor);
-        console.log(`✅ Embedding generated: ${embedding.length} dimensions`);
+        console.log(`âœ… Raw embedding generated: ${embedding.length} dimensions`);
       } catch (modelError) {
-        console.error('Model error:', modelError);
+        console.error('Model inference error:', modelError);
         return res.status(500).json({
           success: false,
           error: `Model inference failed: ${modelError.message}`
         });
       }
 
-      // Store in database
-      let dbRecord;
+      // L2 Normalize the embedding (CRITICAL REQUIREMENT)
+      let normalizedEmbedding;
       try {
-        dbRecord = await FaceEmbedding.create({ 
-          embedding: embedding,
-          imageSize: `${(req.file.size / 1024 / 1024).toFixed(2)}MB`,
-          originalName: req.file.originalname
-        });
-        console.log(`✅ Embedding stored with ID: ${dbRecord.id}`);
-      } catch (dbError) {
-        console.error('Database error:', dbError);
+        normalizedEmbedding = Normalization.l2Normalize(embedding);
+        console.log('âœ… Embedding L2 normalized');
+        
+        // Verify normalization
+        if (Normalization.isNormalized(normalizedEmbedding)) {
+          console.log('âœ… Normalization verified');
+        } else {
+          console.warn('âš ï¸ Normalization check failed');
+        }
+      } catch (normalizationError) {
+        console.error('Normalization error:', normalizationError);
         return res.status(500).json({
           success: false,
-          error: 'Failed to store embedding'
+          error: `Embedding normalization failed: ${normalizationError.message}`
         });
       }
 
-      // Success
+      // Success response
       res.json({
         success: true,
-        embedding: embedding,
-        id: dbRecord.id,
-        message: 'Face encoded successfully'
+        embedding: normalizedEmbedding,
+        normalized: true,
+        dimensions: normalizedEmbedding.length,
+        message: 'Face encoded and L2 normalized successfully'
       });
 
     } catch (error) {
-      console.error('Unexpected error:', error);
+      console.error('Unexpected error in encode:', error);
       res.status(500).json({
         success: false,
-        error: 'Internal server error'
+        error: 'Internal server error during face encoding'
       });
     }
   }
 }
 
 module.exports = new EncodeController();
+
