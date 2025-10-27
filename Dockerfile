@@ -1,12 +1,14 @@
-﻿FROM node:18
+# Simple Node.js image for face verification
+FROM node:18
 
+# Set working directory
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install Node.js dependencies
+RUN npm install --production
 
 # Copy source code
 COPY . .
