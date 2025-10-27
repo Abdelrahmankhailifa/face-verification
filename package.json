@@ -4,12 +4,7 @@
   "description": "AI Face Verification Microservice",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
-    "clean-start": "node kill-port.js && node server.js",
-    "safe-dev": "node kill-port.js && nodemon server.js",
-    "test": "jest",
-    "test:watch": "jest --watch"
+    "start": "node server.js"
   },
   "dependencies": {
     "axios": "^1.12.2",
@@ -26,9 +21,7 @@
     "sequelize": "^6.37.7",
     "sharp": "^0.32.6"
   },
-  "devDependencies": {
-    "jest": "^29.7.0",
-    "nodemon": "^3.1.10",
-    "supertest": "^6.3.4"
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

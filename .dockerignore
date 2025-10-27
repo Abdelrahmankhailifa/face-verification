@@ -6,7 +6,14 @@ README.md
 .env
 .nyc_output
 coverage
+.nyc_output
+.coverage
+.coverage/
+*.log
 .DS_Store
-test_images/
-scripts/
-*.test.js
+.vscode
+.idea
+*.swp
+*.swo
+*~
+package-lock.json
